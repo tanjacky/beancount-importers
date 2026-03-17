@@ -1,0 +1,13 @@
+.git
+__pycache__
+*.pyc
+*.pyo
+.tox
+dist
+build
+*.egg-info
+.eggs
+tests
+docs
+.env
+*.bean

@@ -37,7 +37,10 @@ importers:
     importer: wise
     account: Assets:Wise:Cash
     currency: USD
-
+  td_cad:
+    importer: td
+    account: Assets:TD:Chequing
+    currency: CAD
   kraken:
     importer: kraken
     account: Assets:Kraken

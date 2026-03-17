@@ -11,6 +11,7 @@ from uabean.importers import binance, ibkr, kraken, monobank
 import beancount_importers.import_monzo as import_monzo
 import beancount_importers.import_revolut as import_revolut
 import beancount_importers.import_wise as import_wise
+import beancount_importers.import_td as import_td
 
 
 def get_importer_config(type, account, currency, importer_params):
@@ -86,23 +87,33 @@ def get_importer_config(type, account, currency, importer_params):
             importer=binance.Importer(**(importer_params or {})),
             emoji="🎰"
         )
+    elif type == "td":
+        return dict(
+            **common,
+            module="beancount_import.source.generic_importer_source_beangulp",
+            importer=import_td.get_importer(account, currency),
+            description="Download CSV from TD EasyWeb: Accounts > (select account) > Download",
+            emoji="🏦"
+        )
     else:
         return None
-
 
 def load_import_config_from_file(filename, data_dir, output_dir):
     with open(filename, "r") as config_file:
         parsed_config = yaml.safe_load(config_file)
         data_sources = []
         for key, params in parsed_config["importers"].items():
+            print(f"[load_import_config] Loading importer: key={key} params={params}")
+            importer_config = get_importer_config(
+                params["importer"],
+                params.get("account"),
+                params.get("currency"),
+                params.get("params"),
+            )
+            print(f"[load_import_config] importer_config={importer_config}")
             config = dict(
                 directory=os.path.join(data_dir, key),
-                **get_importer_config(
-                    params["importer"],
-                    params.get("account"),
-                    params.get("currency"),
-                    params.get("params"),
-                )
+                **importer_config,
             )
             data_sources.append(config)
         return dict(
@@ -111,6 +122,29 @@ def load_import_config_from_file(filename, data_dir, output_dir):
                 transactions_output=os.path.join(output_dir, "transactions.bean"),
             )
         )
+
+
+#def load_import_config_from_file(filename, data_dir, output_dir):
+#    with open(filename, "r") as config_file:
+#        parsed_config = yaml.safe_load(config_file)
+#        data_sources = []
+#        for key, params in parsed_config["importers"].items():
+#            config = dict(
+#                directory=os.path.join(data_dir, key),
+#                **get_importer_config(
+#                    params["importer"],
+#                    params.get("account"),
+#                    params.get("currency"),
+#                    params.get("params"),
+#                )
+#            )
+#            data_sources.append(config)
+#        return dict(
+#            all=dict(
+#                data_sources=data_sources,
+#                transactions_output=os.path.join(output_dir, "transactions.bean"),
+#            )
+#        )
 
 
 def get_import_config(data_dir, output_dir):
@@ -215,6 +249,17 @@ def get_import_config(data_dir, output_dir):
             ],
             transactions_output=os.path.join(output_dir, "ibkr", "transactions.bean"),
         ),
+        "td_cad": dict(
+            data_sources=[
+                dict(
+                    module="beancount_import.source.generic_importer_source_beangulp",
+                    importer=import_td.get_importer("Assets:TD:Chequing", "CAD"),
+                    account="Assets:TD:Chequing",
+                    directory=os.path.join(data_dir, "td_cad"),
+                )
+            ],
+            transactions_output=os.path.join(output_dir, "td_cad", "transactions.bean"),
+        )
     }
     import_config_all = dict(
         data_sources=[],
