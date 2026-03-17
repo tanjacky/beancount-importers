@@ -4,7 +4,9 @@ import os
 from pathlib import Path
 
 import beancount_import.webserver
+import beancount_import.reconcile
 import click
+import watchdog.events
 import yaml
 from uabean.importers import binance, ibkr, kraken, monobank
 
@@ -334,6 +336,48 @@ def main(
         "ignored.bean",
     ]:
         Path(os.path.join(output_dir, file)).touch()
+
+    # Patch reload_journal to force re-scan of import data directories on each
+    # reload, so newly added CSV files are picked up automatically.
+    def _reload_journal_rescan(self):
+        assert self.loaded_future.done()
+        loaded_reconciler = self.loaded_future.result()
+        classifier = loaded_reconciler.classifier
+        self.loaded_future = beancount_import.reconcile.call_in_new_thread(
+            beancount_import.reconcile.LoadedReconciler,
+            reconciler=self,
+            classifier=classifier)
+    beancount_import.reconcile.Reconciler.reload_journal = _reload_journal_rescan
+
+    # Patch start_check_modification_observer to also watch data directories,
+    # so a newly uploaded CSV triggers a reload without needing a .bean save.
+    class _DataDirHandler(watchdog.events.FileSystemEventHandler):
+        def __init__(self, app):
+            self.app = app
+        def on_created(self, event):
+            if not event.is_directory:
+                self._trigger()
+        def on_modified(self, event):
+            if not event.is_directory:
+                self._trigger()
+        def _trigger(self):
+            if self.app.reconciler.loaded_future.done():
+                self.app.reconciler.reload_journal()
+                self.app.reset()
+
+    _orig_start_observer = beancount_import.webserver.Application.start_check_modification_observer
+    _data_dirs = set(
+        spec['directory']
+        for spec in import_config[target_config]['data_sources']
+        if 'directory' in spec and os.path.isdir(spec['directory'])
+    )
+
+    def _patched_start_observer(self, loaded_reconciler):
+        _orig_start_observer(self, loaded_reconciler)
+        handler = _DataDirHandler(self)
+        for d in _data_dirs:
+            self.check_modification_observer.schedule(handler, d, recursive=True)
+    beancount_import.webserver.Application.start_check_modification_observer = _patched_start_observer
 
     beancount_import.webserver.main(
         {},
