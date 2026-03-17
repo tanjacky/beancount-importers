@@ -250,17 +250,6 @@ def get_import_config(data_dir, output_dir):
                 )
             ],
             transactions_output=os.path.join(output_dir, "ibkr", "transactions.bean"),
-        ),
-        "td_cad": dict(
-            data_sources=[
-                dict(
-                    module="beancount_import.source.generic_importer_source_beangulp",
-                    importer=import_td.get_importer("Assets:TD:Chequing", "CAD"),
-                    account="Assets:TD:Chequing",
-                    directory=os.path.join(data_dir, "td_cad"),
-                )
-            ],
-            transactions_output=os.path.join(output_dir, "td_cad", "transactions.bean"),
         )
     }
     import_config_all = dict(
