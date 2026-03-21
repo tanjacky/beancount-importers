@@ -14,6 +14,7 @@ import beancount_importers.import_monzo as import_monzo
 import beancount_importers.import_revolut as import_revolut
 import beancount_importers.import_wise as import_wise
 import beancount_importers.import_td as import_td
+import beancount_importers.import_amazon as import_amazon
 
 
 def get_importer_config(type, account, currency, importer_params):
@@ -96,6 +97,14 @@ def get_importer_config(type, account, currency, importer_params):
             importer=import_td.get_importer(account, currency),
             description="Download CSV from TD EasyWeb: Accounts > (select account) > Download",
             emoji="🏦"
+        )
+    elif type == "amazon":
+        return dict(
+            **common,
+            module="beancount_import.source.generic_importer_source_beangulp",
+            importer=import_amazon.get_importer(account, currency, importer_params),
+            description="Download CSV from Amazon: Returns & Orders > Download order reports",
+            emoji="📦"
         )
     else:
         return None
