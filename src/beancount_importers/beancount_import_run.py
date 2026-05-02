@@ -95,7 +95,7 @@ def get_importer_config(type, account, currency, importer_params):
         return dict(
             **common,
             module="beancount_import.source.generic_importer_source_beangulp",
-            importer=import_td.get_importer(account, currency),
+            importer=import_td.get_importer(account, currency, **(importer_params or {})),
             description="Download CSV from TD EasyWeb: Accounts > (select account) > Download",
             emoji="🏦"
         )

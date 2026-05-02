@@ -5,16 +5,30 @@ from beangulp.importers import csv
 
 Col = csv.Col
 
-def categorizer(txn, row):
-    narration = txn.narration
-    posting_account = payee_to_account_mapping.get(narration)
-    if posting_account:
-        txn.postings.append(
-            data.Posting(posting_account, -txn.postings[0].units, None, None, None, None)
-        )
-    return txn
+def make_categorizer(recurring_accounts):
+    recurring_prefixes = tuple(recurring_accounts or [])
 
-def get_importer(account, currency):
+    def is_recurring(account):
+        return any(
+            account == prefix or account.startswith(prefix + ":")
+            for prefix in recurring_prefixes
+        )
+
+    def categorizer(txn, row):
+        narration = txn.narration
+        posting_account = payee_to_account_mapping.get(narration)
+        if posting_account:
+            txn.postings.append(
+                data.Posting(posting_account, -txn.postings[0].units, None, None, None, None)
+            )
+            if is_recurring(posting_account):
+                txn = txn._replace(tags=txn.tags | {"recurring"})
+        return txn
+
+    return categorizer
+
+
+def get_importer(account, currency, recurring_accounts=None):
     return csv.CSVImporter(
         {
             Col.DATE: 0,
@@ -25,7 +39,7 @@ def get_importer(account, currency):
         },
         account,
         currency,
-        categorizer=categorizer,
+        categorizer=make_categorizer(recurring_accounts),
         date_format="%Y-%m-%d",
     )
 
