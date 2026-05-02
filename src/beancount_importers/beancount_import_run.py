@@ -15,6 +15,7 @@ import beancount_importers.import_revolut as import_revolut
 import beancount_importers.import_wise as import_wise
 import beancount_importers.import_td as import_td
 import beancount_importers.import_amazon as import_amazon
+import beancount_importers.import_questrade as import_questrade
 
 
 def get_importer_config(type, account, currency, importer_params):
@@ -105,6 +106,14 @@ def get_importer_config(type, account, currency, importer_params):
             importer=import_amazon.get_importer(account, currency, importer_params),
             description="Download CSV from Amazon: Returns & Orders > Download order reports",
             emoji="📦"
+        )
+    elif type == "questrade":
+        return dict(
+            **common,
+            module="beancount_import.source.generic_importer_source_beangulp",
+            importer=import_questrade.get_importer(account, **(importer_params or {})),
+            description="Download XLSX from Questrade: Reports > Activity > Export",
+            emoji="📈"
         )
     else:
         return None
