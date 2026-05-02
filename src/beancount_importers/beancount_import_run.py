@@ -14,6 +14,7 @@ import beancount_importers.import_monzo as import_monzo
 import beancount_importers.import_revolut as import_revolut
 import beancount_importers.import_wise as import_wise
 import beancount_importers.import_td as import_td
+import beancount_importers.import_rogers as import_rogers
 import beancount_importers.import_amazon as import_amazon
 import beancount_importers.import_questrade as import_questrade
 
@@ -99,6 +100,14 @@ def get_importer_config(type, account, currency, importer_params):
             description="Download CSV from TD EasyWeb: Accounts > (select account) > Download",
             emoji="🏦"
         )
+    elif type == "rogers":
+        return dict(
+            **common,
+            module="beancount_import.source.generic_importer_source_beangulp",
+            importer=import_rogers.get_importer(account, currency, **(importer_params or {})),
+            description="Download CSV from Rogers Bank: Transactions > Export",
+            emoji="💳"
+        )
     elif type == "amazon":
         return dict(
             **common,
@@ -108,6 +117,22 @@ def get_importer_config(type, account, currency, importer_params):
             emoji="📦"
         )
     elif type == "questrade":
+        accounts = (importer_params or {}).get("accounts")
+        if accounts:
+            return [
+                dict(
+                    type=type,
+                    account=acc["account"],
+                    currency=currency,
+                    module="beancount_import.source.generic_importer_source_beangulp",
+                    importer=import_questrade.get_importer(
+                        acc["account"], account_number=acc["account_number"]
+                    ),
+                    description="Download XLSX from Questrade: Reports > Activity > Export",
+                    emoji="📈",
+                )
+                for acc in accounts
+            ]
         return dict(
             **common,
             module="beancount_import.source.generic_importer_source_beangulp",
@@ -131,11 +156,10 @@ def load_import_config_from_file(filename, data_dir, output_dir):
                 params.get("params"),
             )
             print(f"[load_import_config] importer_config={importer_config}")
-            config = dict(
-                directory=os.path.join(data_dir, key),
-                **importer_config,
-            )
-            data_sources.append(config)
+            directory = os.path.join(data_dir, key)
+            configs = importer_config if isinstance(importer_config, list) else [importer_config]
+            for c in configs:
+                data_sources.append(dict(directory=directory, **c))
         return dict(
             all=dict(
                 data_sources=data_sources,
