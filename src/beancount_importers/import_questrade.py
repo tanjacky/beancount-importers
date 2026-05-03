@@ -48,6 +48,7 @@ SYMBOL_MAP = {
     "C006280": "COST",
     "A603109": "AAPL",
     "T043489": "TKO",
+    "TDB353": "TDB3533",
 }
 
 INCOME_DIVIDENDS = "Income:Dividends:Questrade"
@@ -104,7 +105,9 @@ class QuestradeImporter(Importer):
         if not path.name.endswith(".xlsx"):
             return False
         if not re.search(
-            r"(TFSA|RRSP|RESP|Margin|Cash)_Activities", path.name, re.IGNORECASE
+            r"(TFSA|LIRRSP|LIRA|RRSP|RRIF|LIF|RESP|FHSA|Margin|Cash)_Activities",
+            path.name,
+            re.IGNORECASE,
         ):
             return False
         try:
@@ -206,14 +209,23 @@ class QuestradeImporter(Importer):
         if action == "DIV" or (action == "" and r["activity_type"] == "Dividends"):
             return self._dividend(filepath, r, sym, ccy, net, lineno)
 
-        # Inventory-affecting events: only handle if symbol is a known commodity
-        if sym and re.match(r"^[0-9A-Z]{7}$", sym) and sym not in SYMBOL_MAP.values():
+        # Inventory-affecting events: punt unmapped 7-char alphanumeric codes
+        # (Questrade-internal codes like H027305, GIC CUSIPs like 5VXBYR9) to
+        # FIXME. TD mutual fund codes (TDB####) are real symbols and pass through.
+        if (
+            sym
+            and re.match(r"^[0-9A-Z]{7}$", sym)
+            and not re.match(r"^TDB\d+$", sym)
+            and sym not in SYMBOL_MAP.values()
+        ):
             return self._fixme(filepath, r, lineno)
 
-        if action == "BUY":
+        if action == "BUY" or action == "DRI":
             return self._buy(filepath, r, sym, ccy, lineno)
         if action == "SELL":
             return self._sell(filepath, r, sym, ccy, lineno)
+        if action == "TF6":
+            return self._transfer_in(filepath, r, sym, ccy, lineno)
 
         # DIS / CIL / REV / RDM / unknown → FIXME
         return self._fixme(filepath, r, lineno)
@@ -295,6 +307,27 @@ class QuestradeImporter(Importer):
         return data.Transaction(
             self._meta(filepath, lineno), r["txn_date"], "*",
             "Questrade", r["description"][:160],
+            data.EMPTY_SET, data.EMPTY_SET, postings,
+        )
+
+    def _transfer_in(self, filepath, r, sym, ccy, lineno):
+        # External transfer of units (e.g., "TF6" with a TDB#### symbol).
+        # Establish lots at the transfer price; offset to the same equity
+        # contributions bucket used by CON, since these are external assets
+        # being funded into the brokerage account.
+        qty = abs(r["quantity"])
+        price = r["price"]
+        units = amount.Amount(qty, sym)
+        cost = position.CostSpec(price, None, ccy, r["txn_date"], None, False)
+        total = qty * price
+        postings = [
+            data.Posting(self.account_arg, units, cost, None, None, None),
+            data.Posting(contributions_account(self.account_arg),
+                         amount.Amount(-total, ccy), None, None, None, None),
+        ]
+        return data.Transaction(
+            self._meta(filepath, lineno), r["txn_date"], "*",
+            "Questrade", f"TRANSFER-IN {qty} {sym}",
             data.EMPTY_SET, data.EMPTY_SET, postings,
         )
 
