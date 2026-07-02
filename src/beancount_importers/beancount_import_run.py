@@ -15,6 +15,7 @@ import beancount_importers.import_revolut as import_revolut
 import beancount_importers.import_wise as import_wise
 import beancount_importers.import_td as import_td
 import beancount_importers.import_rogers as import_rogers
+import beancount_importers.import_pcfinancial as import_pcfinancial
 import beancount_importers.import_amazon as import_amazon
 import beancount_importers.import_questrade as import_questrade
 
@@ -106,6 +107,30 @@ def get_importer_config(type, account, currency, importer_params):
             module="beancount_import.source.generic_importer_source_beangulp",
             importer=import_rogers.get_importer(account, currency, **(importer_params or {})),
             description="Download CSV from Rogers Bank: Transactions > Export",
+            emoji="💳"
+        )
+    elif type == "pcfinancial":
+        accounts = (importer_params or {}).get("accounts")
+        if accounts:
+            return [
+                dict(
+                    type=type,
+                    account=acc["account"],
+                    currency=currency,
+                    module="beancount_import.source.generic_importer_source_beangulp",
+                    importer=import_pcfinancial.get_importer(
+                        acc["account"], currency, card_holder=acc["card_holder"]
+                    ),
+                    description="Download CSV from PC Financial: Transactions > Download",
+                    emoji="💳",
+                )
+                for acc in accounts
+            ]
+        return dict(
+            **common,
+            module="beancount_import.source.generic_importer_source_beangulp",
+            importer=import_pcfinancial.get_importer(account, currency, card_holder=(importer_params or {}).get("card_holder", "")),
+            description="Download CSV from PC Financial: Transactions > Download",
             emoji="💳"
         )
     elif type == "amazon":
