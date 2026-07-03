@@ -38,6 +38,8 @@ warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 # Questrade uses CUSIP-style codes for some securities; map back to tickers.
 SYMBOL_MAP = {
     ".CASH": "CASH",
+    ".T": "TELUS",
+    "T.TO": "TELUS",
     "H027305": "EEMV",
     "H027336": "ACWV",
     "H031006": "IEFA",
@@ -105,7 +107,7 @@ class QuestradeImporter(Importer):
         if not path.name.endswith(".xlsx"):
             return False
         if not re.search(
-            r"(TFSA|LIRRSP|LIRA|RRSP|RRIF|LIF|RESP|FHSA|Margin|Cash)_Activities",
+            r"((TFSA|LIRRSP|LIRA|RRSP|RRIF|LIF|RESP|FHSA|Margin|Cash)_Activities|Activities_for)",
             path.name,
             re.IGNORECASE,
         ):
@@ -114,11 +116,9 @@ class QuestradeImporter(Importer):
             from openpyxl import load_workbook
             wb = load_workbook(path, data_only=True, read_only=True)
             ws = wb.active
-            for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True)):
+            for row in ws.iter_rows(min_row=2, values_only=True):
                 if row and len(row) > 11 and str(row[11] or "").strip() == self.account_number:
                     return True
-                if i > 5:
-                    break
         except Exception:
             return False
         return False
